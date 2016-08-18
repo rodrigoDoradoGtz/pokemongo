@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Get PokemonGo Locations</title>
+
+  <link rel="stylesheet" href="main.css">
+  <script src="init.js"></script>
+
+  <style>
+    body {
+      font-family: Helvetica, sans-serif;
+    }
+
+    html,
+    body,
+    div {
+      padding: 0;
+      margin: 0;
+    }
+
+    html,
+    body,
+    #viewDiv {
+      height: 100%;
+      width: 100%;
+    }
+
+    #locationPanel {
+      position: fixed;
+      right: 0;
+      bottom: 16px;
+      z-index: 3;
+      background-color: rgba(255,255,255,0.65);
+      padding: 1px 5px 1px 35px;
+      font-size: 10px;
+    }
+
+    #favoriteIcon {
+      position: absolute;
+      left: 5px;
+      top: 50%;
+      margin-top: -12.5px;
+      display: block;
+      width: 25px;
+      height: 25px;
+      background: url('./images/favorite.png') no-repeat;
+      background-size: 100% 100%;
+      cursor: pointer;
+    }
+
+    #favoriteIcon:active, #favoriteIcon:hover {
+      opacity: .8;
+    }
+
+    #locationPanel p {
+      line-height: 14px;
+      margin: 0;
+    }
+
+    #displayPanel {
+      cursor: pointer;
+    }
+  </style>
+
+</head>
+
+<body>
+  <div id="viewDiv"></div>
+  <div id="locationPanel" style="display: none;">
+    <span id="favoriteIcon"></span>
+    <div id="displayPanel"></div>
+  </div>
+</body>
+
+<script type="text/javascript">
+
+    var urlParams = (function() {
+        var vars = {}, 
+            hash,
+            hashes = window.location.href.slice(window.location.href.indexOf('?') + 1).split('&');
+
+        for (var i = 0; i < hashes.length; i++) {
+            hash = hashes[i].split('=');
+            vars[hash[0]] = hash[1];
+        }
+
+        return vars;
+    })();
+
+
+    require([
+      "esri/tasks/Locator",
+      "esri/Map",
+      "esri/PopupTemplate",
+      "esri/views/MapView",
+      "esri/Graphic",
+      "esri/geometry/Point",
+      "esri/symbols/PictureMarkerSymbol",
+      "dojo/domReady!"
+    ], function(
+      Locator,
+      Map, PopupTemplate, MapView,
+      Graphic, Point,
+      PictureMarkerSymbol
+    ) {
+
+      var latCache = urlParams.lat || 39.92,
+          lntCache = urlParams.lnt || 116.46;
+
+      var locationPanel = document.getElementById('locationPanel'),
+          favoriteIcon = document.getElementById('favoriteIcon'),
+          displayPanel = document.getElementById('displayPanel');
+
+      displayPanel.innerHTML = '<p>纬度: '+ Number(latCache).toFixed(7) +'</p><p>经度: '+ Number(lntCache).toFixed(7) +'</p>';
+      locationPanel.style.display = 'block';
+
+      // Set up a locator task using the world geocoding service
+      // var locatorTask = new Locator({
+      //   url: "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer"
+      // });
+
+      var map = new Map({
+        basemap: "streets"
+      });
+
+      var view = new MapView({
+        center: [lntCache, latCache],
+        container: "viewDiv",
+        map: map,
+        zoom: 16
+      });
+
+      /**********************
+       * Create a point graphic
+       **********************/
+
+      // First create a point geometry (this is the location of the Titanic)
+      var point = new Point({
+        longitude: lntCache,
+        latitude: latCache
+      });
+
+      var picSymbol = new PictureMarkerSymbol({
+        url: "./images/marker-icon.png",
+        width: "15px",
+        height: "25px"
+      });
+
+      // Create a graphic and add the geometry and symbol to it
+      var pointGraphic = new Graphic({
+        geometry: point,
+        symbol: picSymbol
+      });
+
+
+      // Add the graphics to the view's graphics layer
+      view.graphics.add(pointGraphic);
+
+
+      // click to reset location
+      view.on("click", function(evt) {
+        lntCache = evt.mapPoint.longitude;
+        latCache = evt.mapPoint.latitude;
+
+        // Get the coordinates of the click on the view
+        // var lat = Math.round(latCache * 1000) / 1000;
+        // var lon = Math.round(lntCache * 1000) / 1000;
+
+        displayPanel.innerHTML = '<p>纬度: '+ Number(latCache).toFixed(7) +'</p><p>经度: '+ Number(lntCache).toFixed(7) +'</p>';
+
+        // remove prev point
+        view.graphics.remove(pointGraphic);
+
+        point = new Point({
+          longitude: lntCache,
+          latitude: latCache
+        });
+
+        pointGraphic = new Graphic({
+          geometry: point,
+          symbol: picSymbol
+        });
+
+        view.graphics.add(pointGraphic);
+
+		window.WebviewBridge.onClick(latCache, lntCache);
+
+      });
+
+      favoriteIcon.addEventListener('click', function(){
+        window.location.href = 'wp://common?api=favoriteGis&latitude='+ latCache +'&longitude=' + lntCache;
+      }, false);
+
+      displayPanel.addEventListener('click', function(){
+        window.location.href = 'wp://common?api=copyGis&latitude='+ latCache +'&longitude=' + lntCache;
+      }, false);
+
+      // go to the given point
+      gotoTargetGis = function(latitude, longitude) {
+        lntCache = longitude;
+        latCache = latitude;
+
+        point = new Point({
+          longitude: lntCache,
+          latitude: latCache
+        });
+
+        displayPanel.innerHTML = '<p>纬度: '+ Number(latCache).toFixed(7) +'</p><p>经度: '+ Number(lntCache).toFixed(7) +'</p>';
+
+        view.goTo({
+          target: point,
+          zoom: 16
+        });
+
+        view.graphics.remove(pointGraphic);
+        pointGraphic = new Graphic({
+          geometry: point,
+          symbol: picSymbol
+        });
+
+        view.graphics.add(pointGraphic);
+      };
+
+    });
+
+</script>
+</html>
